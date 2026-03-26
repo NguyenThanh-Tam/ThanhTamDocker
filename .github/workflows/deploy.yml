@@ -1,0 +1,38 @@
+name: Build and Push Docker Image
+
+# 1. Kích hoạt workflow khi có hành động push vào nhánh main
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 2. Checkout code từ GitHub về máy ảo của GitHub Actions
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2
+
+      # 3. Đăng nhập vào Docker Hub sử dụng Secrets
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4.0.0
+        with:
+          username: ${{ secrets.DOCKER_NAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 4. Thiết lập Docker Buildx (giúp build image nhanh và hỗ trợ nhiều nền tảng)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 5. Tự động Build và Push Image
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v7.0.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Tags: đẩy lên cả tag 'latest' và tag theo ID của lần commit (để dễ quản lý phiên bản)
+          tags: |
+            ${{ secrets.DOCKER_NAME }}/my-app:latest
+            ${{ secrets.DOCKER_NAME }}/my-app:${{ github.sha }}
