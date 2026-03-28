@@ -12,27 +12,48 @@ jobs:
     steps:
       # 2. Checkout code từ GitHub về máy ảo của GitHub Actions
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       # 3. Đăng nhập vào Docker Hub sử dụng Secrets
       - name: Login to Docker Hub
-        uses: docker/login-action@v4.0.0
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_NAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 4. Thiết lập Docker Buildx (giúp build image nhanh và hỗ trợ nhiều nền tảng)
+      # 4. Thiết lập Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # 5. Tự động Build và Push Image
       - name: Build and push Docker images
-        uses: docker/build-push-action@v7.0.0
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          # Tags: đẩy lên cả tag 'latest' và tag theo ID của lần commit (để dễ quản lý phiên bản)
+          # Tags: đẩy lên cả tag 'latest' và tag theo ID của lần commit
           tags: |
             ${{ secrets.DOCKER_NAME }}/my-app:latest
             ${{ secrets.DOCKER_NAME }}/my-app:${{ github.sha }}
+
+      # 6. Triển khai lên DevOps Classroom
+      - name: Triển khai lên DevOps Classroom
+        run: |
+          REPO="tanguyenax/my-app"
+          CONTAINER_PORT=80
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=latest&slot=2&container_port=$CONTAINER_PORT&strict_container_port=0")
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          CODE=$(echo "$RESPONSE" | tail -n1)
+          echo "Webhook HTTP: $CODE"
+          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
+            echo "Deploy thất bại. Xem chi tiết trong nhóm log bên dưới."
+            echo "::group::Chi tiết webhook JSON"
+            echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
+            echo "::endgroup::"
+            exit 1
+          fi
+          echo "Deploy thành công."
+          echo "::group::Chi tiết webhook JSON"
+          echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
+          echo "::endgroup::"
